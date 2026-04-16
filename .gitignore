@@ -1,0 +1,21 @@
+# Environment
+.env
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Database
+*.db
+*.sqlite3
+
+# Alembic
+alembic/versions/
+
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# VS Code
+.vscode/
