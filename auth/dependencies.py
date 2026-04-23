@@ -1,0 +1,145 @@
+from jose import ExpiredSignatureError, JWTError
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
+from sqlalchemy.orm import Session
+
+from auth.jwt_handler import verify_access_token
+from auth.api_key_handler import verify_api_key
+from database import get_db
+from models.user import User
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl="/auth/login",
+    auto_error=False,
+)
+api_key_header = APIKeyHeader(
+    name="X-API-Key",
+    auto_error=False,
+)
+
+
+def get_current_user_jwt(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    try:
+        payload = verify_access_token(token)
+        user_id = payload.get("sub")
+
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+            )
+
+        user = db.query(User).filter(User.id == int(user_id)).first()
+
+        if user is None or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+            )
+
+        return user
+
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+        )
+    except HTTPException:
+        raise
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
+
+
+def get_current_user_api_key(
+    api_key: str | None = Depends(api_key_header),
+    db: Session = Depends(get_db),
+) -> User:
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
+    key_record = verify_api_key(api_key, db)
+
+    if key_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+        )
+
+    user = db.query(User).filter(User.id == key_record.user_id).first()
+
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
+
+    return user
+
+
+def get_current_user(
+    token: str | None = Depends(oauth2_scheme_optional),
+    api_key: str | None = Depends(api_key_header),
+    db: Session = Depends(get_db),
+) -> User:
+    token_error: HTTPException | None = None
+
+    if token:
+        try:
+            payload = verify_access_token(token)
+            user_id = payload.get("sub")
+
+            if user_id is not None:
+                user = db.query(User).filter(User.id == int(user_id)).first()
+                if user is not None and user.is_active:
+                    return user
+            token_error = HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+            )
+        except ExpiredSignatureError:
+            token_error = HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired",
+            )
+        except JWTError:
+            token_error = HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+            )
+
+    if api_key:
+        key_record = verify_api_key(api_key, db)
+        if key_record is not None:
+            user = db.query(User).filter(User.id == key_record.user_id).first()
+            if user is not None and user.is_active:
+                return user
+
+    if token_error is not None:
+        raise token_error
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+    )
+
+
+def require_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user

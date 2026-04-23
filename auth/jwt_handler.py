@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from jose import jwt, JWTError, ExpiredSignatureError
 
 from config import settings
@@ -9,7 +10,7 @@ def create_access_token(data: dict) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    to_encode.update({"exp": expire, "type": "access"})
+    to_encode.update({"exp": expire, "type": "access", "jti": str(uuid4())})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -18,7 +19,7 @@ def create_refresh_token(data: dict) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         days=settings.REFRESH_TOKEN_EXPIRE_DAYS
     )
-    to_encode.update({"exp": expire, "type": "refresh"})
+    to_encode.update({"exp": expire, "type": "refresh", "jti": str(uuid4())})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -27,7 +28,10 @@ def decode_token(token: str) -> dict:
 
 
 def verify_access_token(token: str) -> dict:
-    payload = decode_token(token)
+    try:
+        payload = decode_token(token)
+    except ExpiredSignatureError:
+        raise
     if payload.get("type") != "access":
         raise JWTError("Invalid token type")
     return payload

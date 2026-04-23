@@ -1,21 +1,47 @@
+import logging
+
+import models
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from config import settings
+from database import Base, engine
+from middleware.logging import RequestLoggingMiddleware
+from middleware.rate_limit import RateLimitMiddleware
+from routers.auth import router as auth_router
+from routers.comments import router as comments_router
+from routers.health import router as health_router
+from routers.projects import router as projects_router
+from routers.tags import router as tags_router
+from routers.tasks import router as tasks_router
+from routers.users import router as users_router
+from utils.exceptions import register_exception_handlers
+
+
+logging.basicConfig(level=logging.INFO)
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Task Manager API",
     description="JWT + API Key authenticated task management REST API",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=getattr(settings, "CORS_ORIGINS", ["*"]),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RateLimitMiddleware)
+register_exception_handlers(app)
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "version": "1.0.0"}
+app.include_router(auth_router)
+app.include_router(users_router)
+app.include_router(projects_router)
+app.include_router(tasks_router)
+app.include_router(comments_router)
+app.include_router(tags_router)
+app.include_router(health_router)

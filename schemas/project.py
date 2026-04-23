@@ -1,0 +1,33 @@
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ProjectCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    status: str = Field(default="active", pattern="^(active|on_hold|completed|archived)$")
+
+
+class ProjectUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    status: str = Field(pattern="^(active|on_hold|completed|archived)$")
+
+
+class ProjectPatch(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    status: str | None = Field(default=None, pattern="^(active|on_hold|completed|archived)$")
+
+
+class ProjectResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str | None
+    status: str
+    owner_id: int
+    created_at: datetime
+    updated_at: datetime

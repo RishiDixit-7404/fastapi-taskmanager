@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -16,7 +17,12 @@ def hash_api_key(raw_key: str) -> str:
 
 def verify_api_key(raw_key: str, db: Session) -> APIKey | None:
     hashed_key = hash_api_key(raw_key)
-    return db.query(APIKey).filter(
+    key_record = db.query(APIKey).filter(
         APIKey.key_hash == hashed_key,
         APIKey.is_active == True,
     ).first()
+    if key_record is not None:
+        key_record.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.commit()
+        db.refresh(key_record)
+    return key_record

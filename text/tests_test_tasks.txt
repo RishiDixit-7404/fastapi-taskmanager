@@ -1,0 +1,187 @@
+﻿import pytest
+
+
+@pytest.mark.asyncio
+async def test_patch_task_status_only_changes_status(client, create_user):
+    create_user("task-owner@example.com")
+    login = await client.post(
+        "/auth/login",
+        json={"email": "task-owner@example.com", "password": "password123"},
+    )
+    project = await client.post(
+        "/projects",
+        json={"title": "Task Project", "description": None, "status": "active"},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+    task = await client.post(
+        f"/projects/{project.json()['id']}/tasks",
+        json={"title": "Task 1", "description": "Keep", "status": "todo", "priority": "high"},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+
+    response = await client.patch(
+        f"/tasks/{task.json()['id']}/status",
+        json={"status": "done"},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "done"
+    assert response.json()["description"] == "Keep"
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_list_users(client, create_user):
+    create_user("normal@example.com")
+    login = await client.post(
+        "/auth/login",
+        json={"email": "normal@example.com", "password": "password123"},
+    )
+    response = await client.get("/users", headers={"Authorization": f"Bearer {login.json()['access_token']}"})
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_can_list_users(client, create_admin, create_user):
+    create_admin()
+    create_user("member@example.com")
+    login = await client.post(
+        "/auth/login",
+        json={"email": "admin@example.com", "password": "password123"},
+    )
+    response = await client.get("/users", headers={"Authorization": f"Bearer {login.json()['access_token']}"})
+    assert response.status_code == 200
+    assert len(response.json()) >= 2
+
+
+@pytest.mark.asyncio
+async def test_api_key_can_create_project(client, create_user):
+    create_user("api-project@example.com")
+    login = await client.post(
+        "/auth/login",
+        json={"email": "api-project@example.com", "password": "password123"},
+    )
+    key_response = await client.post(
+        "/auth/api-keys",
+        json={"name": "builder"},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+    response = await client.post(
+        "/projects",
+        json={"title": "API Key Project", "description": "via key", "status": "active"},
+        headers={"X-API-Key": key_response.json()["key"]},
+    )
+    assert response.status_code == 201
+    assert response.json()["title"] == "API Key Project"
+
+
+@pytest.mark.asyncio
+async def test_attach_and_detach_tag(client, create_user):
+    create_user("tag-owner@example.com")
+    login = await client.post(
+        "/auth/login",
+        json={"email": "tag-owner@example.com", "password": "password123"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    project = await client.post("/projects", json={"title": "Tags", "description": None, "status": "active"}, headers=headers)
+    task = await client.post(
+        f"/projects/{project.json()['id']}/tasks",
+        json={"title": "Tag me", "description": None, "status": "todo", "priority": "medium"},
+        headers=headers,
+    )
+    tag = await client.post("/tags", json={"name": "backend", "colour": "#112233"}, headers=headers)
+
+    attach = await client.post(f"/tasks/{task.json()['id']}/tags/{tag.json()['id']}", headers=headers)
+    assert attach.status_code == 200
+
+    detach = await client.delete(f"/tasks/{task.json()['id']}/tags/{tag.json()['id']}", headers=headers)
+    assert detach.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_comment_author_can_update_comment(client, create_user):
+    create_user("commenter@example.com")
+    login = await client.post(
+        "/auth/login",
+        json={"email": "commenter@example.com", "password": "password123"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    project = await client.post("/projects", json={"title": "Comments", "description": None, "status": "active"}, headers=headers)
+    task = await client.post(
+        f"/projects/{project.json()['id']}/tasks",
+        json={"title": "Comment task", "description": None, "status": "todo", "priority": "medium"},
+        headers=headers,
+    )
+    comment = await client.post(
+        f"/tasks/{task.json()['id']}/comments",
+        json={"body": "first"},
+        headers=headers,
+    )
+    response = await client.put(
+        f"/comments/{comment.json()['id']}",
+        json={"body": "updated"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["body"] == "updated"
+
+
+@pytest.mark.asyncio
+async def test_health_endpoint_requires_no_auth(client):
+    response = await client.get("/health")
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_missing_token_on_projects_returns_401(client):
+    response = await client.get("/projects")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_admin_can_view_stats(client, create_admin, create_user):
+    create_admin()
+    create_user("stats-user@example.com")
+    login = await client.post(
+        "/auth/login",
+        json={"email": "admin@example.com", "password": "password123"},
+    )
+    response = await client.get("/stats", headers={"Authorization": f"Bearer {login.json()['access_token']}"})
+    assert response.status_code == 200
+    assert "total_users" in response.json()
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_delete_tag(client, create_user):
+    create_user("tag-delete-user@example.com")
+    login = await client.post(
+        "/auth/login",
+        json={"email": "tag-delete-user@example.com", "password": "password123"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    tag = await client.post("/tags", json={"name": "ops", "colour": "#445566"}, headers=headers)
+    response = await client.delete(f"/tags/{tag.json()['id']}", headers=headers)
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_revoked_api_key_is_rejected(client, create_user):
+    create_user("revoked-key@example.com")
+    login = await client.post(
+        "/auth/login",
+        json={"email": "revoked-key@example.com", "password": "password123"},
+    )
+    jwt_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    key = await client.post("/auth/api-keys", json={"name": "temp"}, headers=jwt_headers)
+    await client.delete(f"/auth/api-keys/{key.json()['id']}", headers=jwt_headers)
+    response = await client.get("/auth/me", headers={"X-API-Key": key.json()["key"]})
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_rate_limiting_returns_429_after_limit(client):
+    last_response = None
+    for _ in range(101):
+        last_response = await client.get("/health")
+    assert last_response is not None
+    assert last_response.status_code == 429
+

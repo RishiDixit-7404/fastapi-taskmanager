@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager UI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="page-shell">
+        <section id="auth-screen" class="auth-screen">
+            <div class="auth-card">
+                <div>
+                    <p class="eyebrow">Task Manager</p>
+                    <h1>Sign in</h1>
+                    <p class="subtle">A minimal UI for your FastAPI backend.</p>
+                </div>
+
+                <form id="settings-form" class="stack">
+                    <label>
+                        <span>Backend URL</span>
+                        <input id="base-url" name="baseUrl" type="url" placeholder="http://127.0.0.1:8000" required>
+                    </label>
+                    <button type="submit" class="secondary">Save backend URL</button>
+                </form>
+
+                <form id="login-form" class="stack">
+                    <label>
+                        <span>Email</span>
+                        <input name="email" type="email" required>
+                    </label>
+                    <label>
+                        <span>Password</span>
+                        <input name="password" type="password" required>
+                    </label>
+                    <button type="submit">Login</button>
+                </form>
+
+                <details>
+                    <summary>Create account</summary>
+                    <form id="register-form" class="stack details-form">
+                        <label>
+                            <span>Full name</span>
+                            <input name="full_name" type="text" required>
+                        </label>
+                        <label>
+                            <span>Email</span>
+                            <input name="email" type="email" required>
+                        </label>
+                        <label>
+                            <span>Password</span>
+                            <input name="password" type="password" minlength="6" required>
+                        </label>
+                        <button type="submit">Register</button>
+                    </form>
+                </details>
+
+                <pre id="auth-output" class="output small"></pre>
+            </div>
+        </section>
+
+        <section id="app-screen" class="app-screen hidden">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">Task Manager</p>
+                    <h2>API Control Panel</h2>
+                </div>
+                <div class="topbar-actions">
+                    <button id="load-me-btn" class="secondary" type="button">Load Me</button>
+                    <button id="refresh-token-btn" class="secondary" type="button">Refresh Token</button>
+                    <button id="logout-btn" type="button">Logout</button>
+                </div>
+            </header>
+
+            <section class="panel">
+                <h3>Session</h3>
+                <div class="grid two">
+                    <div>
+                        <p><strong>Backend:</strong> <span id="session-base-url"></span></p>
+                        <p><strong>Access token:</strong> <span id="session-token-state">Not loaded</span></p>
+                    </div>
+                    <pre id="me-output" class="output"></pre>
+                </div>
+            </section>
+
+            <main class="workspace">
+                <section class="panel">
+                    <h3>Health</h3>
+                    <div class="actions">
+                        <button type="button" data-action="health">GET /health</button>
+                        <button type="button" data-action="stats">GET /stats</button>
+                    </div>
+                    <pre id="health-output" class="output"></pre>
+                </section>
+
+                <section class="panel">
+                    <h3>Projects</h3>
+                    <div class="actions">
+                        <button type="button" data-action="list-projects">List projects</button>
+                    </div>
+                    <form id="project-create-form" class="grid two">
+                        <input name="title" type="text" placeholder="Title" required>
+                        <select name="status">
+                            <option value="active">active</option>
+                            <option value="on_hold">on_hold</option>
+                            <option value="completed">completed</option>
+                            <option value="archived">archived</option>
+                        </select>
+                        <textarea name="description" placeholder="Description"></textarea>
+                        <button type="submit">Create project</button>
+                    </form>
+                    <form id="project-by-id-form" class="grid three compact-form">
+                        <input name="project_id" type="number" min="1" placeholder="Project ID" required>
+                        <button type="submit" data-mode="get">Get</button>
+                        <button type="submit" data-mode="delete" class="danger">Delete</button>
+                    </form>
+                    <form id="project-update-form" class="stack compact-form">
+                        <input name="project_id" type="number" min="1" placeholder="Project ID" required>
+                        <textarea name="payload" placeholder='{"title":"Updated project","description":"Notes","status":"active"}' required></textarea>
+                        <div class="actions">
+                            <button type="submit" data-mode="put">PUT update</button>
+                            <button type="submit" data-mode="patch" class="secondary">PATCH update</button>
+                        </div>
+                    </form>
+                    <pre id="projects-output" class="output"></pre>
+                </section>
+
+                <section class="panel">
+                    <h3>Tasks</h3>
+                    <div class="actions">
+                        <button type="button" data-action="list-tasks">List tasks by project</button>
+                    </div>
+                    <form id="task-create-form" class="stack compact-form">
+                        <input name="project_id" type="number" min="1" placeholder="Project ID" required>
+                        <textarea name="payload" placeholder='{"title":"Task title","description":"Optional","status":"todo","priority":"medium","assignee_id":null,"due_date":null}' required></textarea>
+                        <button type="submit">Create task</button>
+                    </form>
+                    <form id="task-by-id-form" class="grid three compact-form">
+                        <input name="task_id" type="number" min="1" placeholder="Task ID" required>
+                        <button type="submit" data-mode="get">Get</button>
+                        <button type="submit" data-mode="delete" class="danger">Delete</button>
+                    </form>
+                    <form id="task-update-form" class="stack compact-form">
+                        <input name="task_id" type="number" min="1" placeholder="Task ID" required>
+                        <textarea name="payload" placeholder='{"title":"Edited task","description":"Optional","status":"todo","priority":"high","assignee_id":null,"due_date":null}' required></textarea>
+                        <div class="actions">
+                            <button type="submit" data-mode="put">PUT update</button>
+                            <button type="submit" data-mode="patch" class="secondary">PATCH update</button>
+                        </div>
+                    </form>
+                    <form id="task-status-form" class="grid two compact-form">
+                        <input name="task_id" type="number" min="1" placeholder="Task ID" required>
+                        <select name="status">
+                            <option value="todo">todo</option>
+                            <option value="in_progress">in_progress</option>
+                            <option value="done">done</option>
+                            <option value="blocked">blocked</option>
+                        </select>
+                        <button type="submit">PATCH status</button>
+                    </form>
+                    <form id="task-tag-form" class="grid three compact-form">
+                        <input name="task_id" type="number" min="1" placeholder="Task ID" required>
+                        <input name="tag_id" type="number" min="1" placeholder="Tag ID" required>
+                        <div class="actions">
+                            <button type="submit" data-mode="attach">Attach tag</button>
+                            <button type="submit" data-mode="detach" class="secondary">Detach tag</button>
+                        </div>
+                    </form>
+                    <pre id="tasks-output" class="output"></pre>
+                </section>
+
+                <section class="panel">
+                    <h3>Comments</h3>
+                    <div class="actions">
+                        <button type="button" data-action="list-comments">List comments by task</button>
+                    </div>
+                    <form id="comment-create-form" class="stack compact-form">
+                        <input name="task_id" type="number" min="1" placeholder="Task ID" required>
+                        <textarea name="body" placeholder="Comment body" required></textarea>
+                        <button type="submit">Add comment</button>
+                    </form>
+                    <form id="comment-update-form" class="stack compact-form">
+                        <input name="comment_id" type="number" min="1" placeholder="Comment ID" required>
+                        <textarea name="body" placeholder="Updated comment body" required></textarea>
+                        <button type="submit">Update comment</button>
+                    </form>
+                    <form id="comment-delete-form" class="grid two compact-form">
+                        <input name="comment_id" type="number" min="1" placeholder="Comment ID" required>
+                        <button type="submit" class="danger">Delete comment</button>
+                    </form>
+                    <pre id="comments-output" class="output"></pre>
+                </section>
+
+                <section class="panel">
+                    <h3>Tags</h3>
+                    <div class="actions">
+                        <button type="button" data-action="list-tags">List tags</button>
+                    </div>
+                    <form id="tag-create-form" class="grid two compact-form">
+                        <input name="name" type="text" placeholder="Tag name" required>
+                        <input name="colour" type="text" placeholder="#3366FF" required>
+                        <button type="submit">Create tag</button>
+                    </form>
+                    <form id="tag-delete-form" class="grid two compact-form">
+                        <input name="tag_id" type="number" min="1" placeholder="Tag ID" required>
+                        <button type="submit" class="danger">Delete tag</button>
+                    </form>
+                    <pre id="tags-output" class="output"></pre>
+                </section>
+
+                <section class="panel">
+                    <h3>API Keys</h3>
+                    <div class="actions">
+                        <button type="button" data-action="list-api-keys">List API keys</button>
+                    </div>
+                    <form id="api-key-create-form" class="grid two compact-form">
+                        <input name="name" type="text" placeholder="Key name" required>
+                        <button type="submit">Create API key</button>
+                    </form>
+                    <form id="api-key-delete-form" class="grid two compact-form">
+                        <input name="key_id" type="number" min="1" placeholder="Key ID" required>
+                        <button type="submit" class="danger">Revoke API key</button>
+                    </form>
+                    <pre id="api-keys-output" class="output"></pre>
+                </section>
+
+                <section class="panel">
+                    <h3>Users Admin</h3>
+                    <div class="actions">
+                        <button type="button" data-action="list-users">List users</button>
+                    </div>
+                    <form id="user-by-id-form" class="grid three compact-form">
+                        <input name="user_id" type="number" min="1" placeholder="User ID" required>
+                        <button type="submit" data-mode="get">Get user</button>
+                        <button type="submit" data-mode="delete" class="danger">Deactivate user</button>
+                    </form>
+                    <form id="user-update-form" class="stack compact-form">
+                        <input name="user_id" type="number" min="1" placeholder="User ID" required>
+                        <textarea name="payload" placeholder='{"email":"user@example.com","full_name":"User Name","role":"user","is_active":true}' required></textarea>
+                        <button type="submit">PUT update</button>
+                    </form>
+                    <form id="user-role-form" class="grid two compact-form">
+                        <input name="user_id" type="number" min="1" placeholder="User ID" required>
+                        <select name="role">
+                            <option value="user">user</option>
+                            <option value="admin">admin</option>
+                        </select>
+                        <button type="submit">PATCH role</button>
+                    </form>
+                    <pre id="users-output" class="output"></pre>
+                </section>
+            </main>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

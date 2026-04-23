@@ -1,0 +1,37 @@
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from auth.dependencies import require_admin
+from database import get_db
+from models.project import Project
+from models.task import Task
+from models.user import User
+
+
+router = APIRouter(tags=["Health"])
+
+
+@router.get("/health")
+def health_check():
+    return {
+        "status": "ok",
+        "version": "1.0.0",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/stats")
+def get_stats(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    task_counts = dict(db.query(Task.status, func.count(Task.id)).group_by(Task.status).all())
+    return {
+        "total_users": db.query(User).count(),
+        "total_projects": db.query(Project).count(),
+        "total_tasks": db.query(Task).count(),
+        "tasks_by_status": task_counts,
+    }
