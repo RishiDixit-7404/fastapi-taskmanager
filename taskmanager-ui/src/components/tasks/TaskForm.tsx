@@ -31,13 +31,14 @@ interface TaskFormProps {
   task?: TaskResponse;
   users?: UserResponse[];
   submitLabel: string;
+  defaultStatus?: TaskStatus;
   onSubmit: (values: TaskFormValues) => Promise<void> | void;
 }
 
-export function TaskForm({ task, users = [], submitLabel, onSubmit }: TaskFormProps) {
+export function TaskForm({ task, users = [], submitLabel, defaultStatus, onSubmit }: TaskFormProps) {
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: formDefaults(task),
+    defaultValues: formDefaults(task, defaultStatus),
   });
 
   useEffect(() => {
@@ -125,11 +126,11 @@ export function TaskForm({ task, users = [], submitLabel, onSubmit }: TaskFormPr
   );
 }
 
-function formDefaults(task?: TaskResponse): z.infer<typeof schema> {
+function formDefaults(task?: TaskResponse, defaultStatus?: TaskStatus): z.infer<typeof schema> {
   return {
     title: task?.title || "",
     description: task?.description || "",
-    status: task?.status || "todo",
+    status: task?.status || defaultStatus || "todo",
     priority: task?.priority || "medium",
     assignee_id: task?.assignee_id ? String(task.assignee_id) : "",
     due_date: task?.due_date || "",

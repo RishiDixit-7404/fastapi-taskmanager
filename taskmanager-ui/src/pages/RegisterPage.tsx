@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { UserPlus } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import { z } from "zod";
 import { getCurrentUser, loginUser, registerUser } from "../api/auth";
 import { getApiErrorMessage } from "../api/client";
 import { AuthLayout } from "../components/layout/AuthLayout";
+import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
@@ -29,7 +31,8 @@ type RegisterForm = z.infer<typeof schema>;
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, setTokens, setUser } = useAuth();
+  const { isAuthenticated, setTokens, setUser, clearAuth } = useAuth();
+  const [serverError, setServerError] = useState<string | null>(null);
   const form = useForm<RegisterForm>({
     resolver: zodResolver(schema),
     defaultValues: { full_name: "", email: "", password: "", confirmPassword: "" },
@@ -41,6 +44,7 @@ export function RegisterPage() {
 
   async function onSubmit(values: RegisterForm) {
     try {
+      setServerError(null);
       await registerUser({
         full_name: values.full_name,
         email: values.email,
@@ -53,7 +57,10 @@ export function RegisterPage() {
       toast.success("Account created");
       navigate("/dashboard", { replace: true });
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Registration failed"));
+      clearAuth();
+      const message = getApiErrorMessage(error, "Registration failed");
+      setServerError(message);
+      toast.error(message);
     }
   }
 
@@ -72,6 +79,11 @@ export function RegisterPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {serverError ? (
+            <Alert className="mb-4" title="Registration failed">
+              {serverError}
+            </Alert>
+          ) : null}
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="space-y-2">
               <label className="label" htmlFor="full_name">

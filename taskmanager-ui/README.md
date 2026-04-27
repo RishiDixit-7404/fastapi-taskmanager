@@ -2,6 +2,8 @@
 
 React 18 + Vite frontend for the FastAPI Task Manager API.
 
+This is a client-side single-page application that consumes the existing FastAPI backend from the parent repository. It does not modify backend routes and does not use the older static `ui/` folder.
+
 ## Stack
 
 - React 18
@@ -16,6 +18,30 @@ React 18 + Vite frontend for the FastAPI Task Manager API.
 - Zod
 - Lucide React
 - Sonner
+- date-fns
+
+## Folder Structure
+
+```text
+taskmanager-ui/
+  src/
+    api/          Axios client and endpoint-specific API modules
+    components/   Layout, feature components, and local shadcn-style UI primitives
+    hooks/        TanStack Query hooks and auth selector hook
+    pages/        Route-level pages
+    routes/       React Router route config, ProtectedRoute, AdminRoute
+    store/        Zustand auth store
+    types/        TypeScript API contracts matching the FastAPI schemas
+    utils/        Formatting and class-name helpers
+    App.tsx       QueryClientProvider, RouterProvider, Toaster
+    main.tsx      Vite entry point
+  public/
+    favicon.svg
+  .env.example
+  package.json
+  tailwind.config.ts
+  vite.config.ts
+```
 
 ## Features
 
@@ -32,6 +58,7 @@ React 18 + Vite frontend for the FastAPI Task Manager API.
 - API key create/list/revoke with one-time raw key reveal modal.
 - Admin panel with stats, user role change, and user deactivation.
 - Toast notifications and loading/empty states.
+- Inline error alerts for failed data loads and auth failures.
 - Dark mode toggle.
 
 ## Backend Assumptions
@@ -61,6 +88,12 @@ Create local environment config:
 copy .env.example .env
 ```
 
+On macOS/Linux:
+
+```bash
+cp .env.example .env
+```
+
 Default:
 
 ```env
@@ -68,6 +101,8 @@ VITE_API_BASE_URL=http://localhost:8000
 ```
 
 If the backend is running on another port, update `VITE_API_BASE_URL`.
+
+All API base URL usage flows through `src/api/client.ts`.
 
 ## Run
 
@@ -96,6 +131,15 @@ npm run build
 npm run preview
 ```
 
+## Auth Notes
+
+- Access and refresh tokens are stored only in the Zustand auth store.
+- Tokens are not written to `localStorage` or `sessionStorage`.
+- A full browser refresh clears the in-memory auth state and sends the user back to `/login`.
+- Axios injects `Authorization: Bearer <accessToken>` on API calls when a token exists.
+- On a `401`, Axios attempts one refresh request using `/auth/refresh`, retries the original request once, and redirects to `/login` if refresh fails.
+- API keys are displayed for programmatic use only; the React UI itself always authenticates with JWT bearer tokens.
+
 ## Route Map
 
 | Route | Purpose |
@@ -115,3 +159,24 @@ npm run preview
 This app follows the React frontend URD closely, but the shadcn/ui requirement is implemented as local Tailwind-styled primitives in `src/components/ui` rather than generated Radix/shadcn components. That keeps the frontend self-contained and avoids requiring the shadcn CLI during generation.
 
 The app is ready for dependency installation and a Vite build on a machine with Node.js/npm installed.
+
+## First Tests After npm Is Available
+
+```bash
+cd taskmanager-ui
+npm install
+npm run build
+npm run dev
+```
+
+Then manually verify:
+
+- Register, auto-login, logout, and login.
+- Token refresh after an expired access token.
+- Project create, PUT edit, PATCH status, and delete.
+- Task create, PUT edit, PATCH status, tag attach/detach, and delete.
+- Comment add, edit as author, delete as author/admin.
+- API key create, copy, list, and revoke.
+- Admin stats, user role change, and deactivate.
+- Non-admin redirect away from `/admin`.
+- Mobile viewport layout.

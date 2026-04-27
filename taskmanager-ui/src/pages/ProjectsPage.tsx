@@ -1,23 +1,24 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import { getApiErrorMessage } from "../api/client";
+import { ProjectCard } from "../components/projects/ProjectCard";
 import { ProjectForm } from "../components/projects/ProjectForm";
-import { ProjectStatusBadge } from "../components/projects/ProjectStatusBadge";
+import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader } from "../components/ui/Card";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { EmptyState, LoadingBlock } from "../components/ui/Loading";
 import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
 import { useCreateProject, useDeleteProject, useProjects } from "../hooks/useProjects";
-import type { ProjectStatus } from "../types/api";
-import { formatDate } from "../utils/formatDate";
+import type { ProjectResponse, ProjectStatus } from "../types/api";
 
 export function ProjectsPage() {
   const [status, setStatus] = useState<ProjectStatus | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<ProjectResponse | null>(null);
   const projects = useProjects(status);
   const createMutation = useCreateProject();
   const deleteMutation = useDeleteProject();
@@ -42,7 +43,11 @@ export function ProjectsPage() {
               <h3 className="font-semibold">Project list</h3>
               <p className="text-sm text-muted-foreground">Filter by status when the workspace grows.</p>
             </div>
-            <Select className="sm:w-56" value={status} onChange={(event) => setStatus(event.target.value as ProjectStatus | "all")}>
+            <Select
+              className="sm:w-56"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as ProjectStatus | "all")}
+            >
               <option value="all">All statuses</option>
               <option value="active">active</option>
               <option value="on_hold">on_hold</option>
@@ -52,39 +57,14 @@ export function ProjectsPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {projects.isError ? <Alert>{getApiErrorMessage(projects.error, "Could not load projects")}</Alert> : null}
           {projects.isLoading ? <LoadingBlock /> : null}
-          {!projects.isLoading && !projects.data?.length ? <EmptyState message="No projects match this view." /> : null}
+          {!projects.isLoading && !projects.isError && !projects.data?.length ? (
+            <EmptyState message="No projects match this view. Create your first project to get started." />
+          ) : null}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {(projects.data || []).map((project) => (
-              <article key={project.id} className="rounded-lg border bg-background p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <ProjectStatusBadge status={project.status} />
-                    <Link to={`/projects/${project.id}`} className="mt-3 block text-lg font-semibold hover:text-primary">
-                      {project.title}
-                    </Link>
-                    <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
-                      {project.description || "No description"}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    className="h-8 w-8 px-0 text-destructive"
-                    onClick={async () => {
-                      if (!window.confirm(`Delete project "${project.title}" and its tasks?`)) return;
-                      try {
-                        await deleteMutation.mutateAsync(project.id);
-                        toast.success("Project deleted");
-                      } catch (error) {
-                        toast.error(getApiErrorMessage(error, "Could not delete project"));
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="mt-4 border-t pt-3 text-xs text-muted-foreground">Updated {formatDate(project.updated_at)}</div>
-              </article>
+              <ProjectCard key={project.id} project={project} onDelete={setToDelete} />
             ))}
           </div>
         </CardContent>
@@ -108,6 +88,25 @@ export function ProjectsPage() {
           }}
         />
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        title={`Delete "${toDelete?.title}"?`}
+        description="This will permanently delete the project and all of its tasks. This action cannot be undone."
+        confirmLabel="Delete project"
+        onCancel={() => setToDelete(null)}
+        onConfirm={async () => {
+          if (!toDelete) return;
+          try {
+            await deleteMutation.mutateAsync(toDelete.id);
+            toast.success("Project deleted");
+          } catch (error) {
+            toast.error(getApiErrorMessage(error, "Could not delete project"));
+          } finally {
+            setToDelete(null);
+          }
+        }}
+      />
     </div>
   );
 }

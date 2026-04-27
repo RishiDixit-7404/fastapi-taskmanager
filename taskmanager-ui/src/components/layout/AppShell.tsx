@@ -37,10 +37,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user, isAdmin, refreshToken, clearAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  const [dark, setDark] = useState(() => {
+    const stored = localStorage.getItem("tm-dark");
+    if (stored !== null) return stored === "true";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("tm-dark", String(dark));
   }, [dark]);
 
   async function handleLogout() {

@@ -19,3 +19,10 @@ htmlcov/
 
 # VS Code
 .vscode/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Node
+taskmanager-ui/node_modules/
+taskmanager-ui/dist/

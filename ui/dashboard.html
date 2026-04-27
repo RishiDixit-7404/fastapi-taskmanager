@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager | Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/custom.css">
+</head>
+<body class="app-body" data-page="dashboard">
+    <div id="toast" class="app-toast d-none"></div>
+    <nav id="app-nav"></nav>
+
+    <main class="container py-4">
+        <section class="hero-panel mb-4">
+            <div class="row g-4 align-items-center">
+                <div class="col-lg-8">
+                    <p class="text-uppercase small text-primary fw-semibold mb-2 tracking-wide">Overview</p>
+                    <h1 class="display-6 fw-bold mb-2">Your workspace at a glance</h1>
+                    <p class="text-secondary mb-0">Projects, task activity, API health, and personal access keys in one place.</p>
+                </div>
+                <div class="col-lg-4">
+                    <div class="surface-panel text-lg-end">
+                        <div class="small text-secondary mb-1">Backend</div>
+                        <div id="dashboard-base-url" class="fw-semibold text-break"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="row g-3 mb-4" id="stats-grid">
+            <div class="col-6 col-xl-3"><div class="metric-card"><span>Total projects</span><strong id="metric-projects">0</strong></div></div>
+            <div class="col-6 col-xl-3"><div class="metric-card"><span>Total tasks</span><strong id="metric-tasks">0</strong></div></div>
+            <div class="col-6 col-xl-3"><div class="metric-card"><span>In progress</span><strong id="metric-progress">0</strong></div></div>
+            <div class="col-6 col-xl-3"><div class="metric-card"><span>Completed</span><strong id="metric-done">0</strong></div></div>
+        </section>
+
+        <div class="row g-4">
+            <div class="col-12 col-xl-8">
+                <section class="card border-0 shadow-sm h-100">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h2 class="h4 mb-1">Recent task activity</h2>
+                                <p class="text-secondary mb-0">Derived from your existing project and task endpoints.</p>
+                            </div>
+                            <a href="projects.html" class="btn btn-primary">Open projects</a>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Task</th>
+                                        <th>Project</th>
+                                        <th>Status</th>
+                                        <th>Priority</th>
+                                        <th>Updated</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-task-body"></tbody>
+                            </table>
+                        </div>
+                        <div id="recent-task-empty" class="empty-state d-none">No tasks yet. Create a project and add your first task.</div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="col-12 col-xl-4">
+                <div class="vstack gap-4">
+                    <section class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h2 class="h5 mb-1">System health</h2>
+                                    <p class="text-secondary small mb-0">Public health check from the backend.</p>
+                                </div>
+                                <button id="refresh-health-btn" class="btn btn-outline-primary btn-sm" type="button">Refresh</button>
+                            </div>
+                            <div id="health-panel" class="surface-subtle small"></div>
+                        </div>
+                    </section>
+
+                    <section class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h2 class="h5 mb-1">API keys</h2>
+                                    <p class="text-secondary small mb-0">JWT-only routes, still available without backend changes.</p>
+                                </div>
+                            </div>
+
+                            <form id="api-key-form" class="vstack gap-3 mb-3">
+                                <div>
+                                    <label for="api-key-name" class="form-label">Key name</label>
+                                    <input id="api-key-name" name="name" class="form-control" type="text" placeholder="My local key" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Create API key</button>
+                            </form>
+
+                            <div id="new-api-key-panel" class="surface-subtle d-none mb-3"></div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="h6 mb-0">Existing keys</h3>
+                                <button id="refresh-api-keys-btn" class="btn btn-link text-decoration-none px-0" type="button">Refresh</button>
+                            </div>
+                            <div id="api-key-list" class="vstack gap-2"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
