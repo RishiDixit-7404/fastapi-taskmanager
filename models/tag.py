@@ -1,0 +1,29 @@
+from typing import TYPE_CHECKING
+
+from sqlalchemy import String, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from database import Base
+
+if TYPE_CHECKING:
+    from models.task import Task
+
+
+class TaskTag(Base):
+    __tablename__ = "task_tags"
+
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), primary_key=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tags.id"), primary_key=True)
+
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    colour: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    tasks: Mapped[list["Task"]] = relationship(
+        secondary="task_tags",
+        back_populates="tags",
+    )

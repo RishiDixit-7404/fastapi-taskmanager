@@ -1,0 +1,52 @@
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy.orm import Session
+
+from auth.dependencies import get_current_user, require_admin
+from database import get_db
+from models.tag import Tag
+from schemas.tag import TagCreate, TagResponse
+
+
+router = APIRouter(prefix="/tags", tags=["Tags"])
+
+
+@router.get("", response_model=list[TagResponse])
+def list_tags(
+    name: str | None = None,
+    _: object = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Tag)
+    if name:
+        query = query.filter(Tag.name.ilike(f"%{name}%"))
+    return query.all()
+
+
+@router.post("", response_model=TagResponse, status_code=status.HTTP_201_CREATED)
+def create_tag(
+    payload: TagCreate,
+    _: object = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    existing = db.query(Tag).filter(Tag.name == payload.name).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tag already exists")
+    tag = Tag(**payload.model_dump())
+    db.add(tag)
+    db.commit()
+    db.refresh(tag)
+    return tag
+
+
+@router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_tag(
+    tag_id: int,
+    _: object = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if tag is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+    db.delete(tag)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

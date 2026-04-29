@@ -1,0 +1,31 @@
+# Environment
+.env
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Database
+*.db
+*.sqlite3
+
+# Alembic
+alembic/versions/
+
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Logs
+*.log
+
+# VS Code
+.vscode/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Node
+taskmanager-ui/node_modules/
+taskmanager-ui/dist/

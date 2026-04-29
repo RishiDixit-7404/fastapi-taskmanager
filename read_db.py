@@ -1,0 +1,53 @@
+import sqlite3
+from pathlib import Path
+
+
+DB_PATH = Path("taskmanager.db")
+
+
+def main() -> None:
+    if not DB_PATH.exists():
+        print(f"Database not found: {DB_PATH.resolve()}")
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        cursor = conn.cursor()
+
+        # 1. show all tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
+        tables = [row["name"] for row in cursor.fetchall()]
+
+        if not tables:
+            print("No tables found.")
+            return
+
+        print("Tables found:")
+        for table in tables:
+            print(f" - {table}")
+
+        print("\n" + "=" * 50)
+
+        # 2. print contents of each table
+        for table in tables:
+            print(f"\nTABLE: {table}")
+            print("-" * 50)
+
+            cursor.execute(f"SELECT * FROM {table};")
+            rows = cursor.fetchall()
+
+            if not rows:
+                print("No rows found.")
+                continue
+
+            for row in rows:
+                print(dict(row))
+
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,228 @@
+from datetime import datetime, timedelta, timezone
+
+import pytest
+from jose import jwt
+
+from auth.api_key_handler import hash_api_key
+from auth.jwt_handler import create_access_token, create_refresh_token
+from config import settings
+from models.api_key import APIKey
+from models.refresh_token import RefreshToken
+from models.user import User
+
+
+@pytest.mark.asyncio
+async def test_register_new_user(client, db_session):
+    response = await client.post(
+        "/auth/register",
+        json={"email": "new@example.com", "password": "password123", "full_name": "New User"},
+    )
+
+    assert response.status_code == 201
+    user = db_session.query(User).filter(User.email == "new@example.com").first()
+    assert user is not None
+    assert user.hashed_password != "password123"
+
+
+@pytest.mark.asyncio
+async def test_register_duplicate_email(client, create_user):
+    create_user("duplicate@example.com")
+    response = await client.post(
+        "/auth/register",
+        json={"email": "duplicate@example.com", "password": "password123", "full_name": "Duplicate"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Email already registered"
+
+
+@pytest.mark.asyncio
+async def test_login_with_valid_credentials(client, create_user):
+    create_user("login@example.com")
+    response = await client.post(
+        "/auth/login",
+        data={"username": "login@example.com", "password": "password123"},
+    )
+    data = response.json()
+    assert response.status_code == 200
+    assert data["access_token"]
+    assert data["refresh_token"]
+    assert data["token_type"] == "bearer"
+
+
+@pytest.mark.asyncio
+async def test_login_with_invalid_password(client, create_user):
+    create_user("wrongpw@example.com")
+    response = await client.post(
+        "/auth/login",
+        data={"username": "wrongpw@example.com", "password": "bad-password"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect email or password"
+
+
+@pytest.mark.asyncio
+async def test_refresh_rotates_token(client, create_user, db_session):
+    create_user("refresh@example.com")
+    login = await client.post(
+        "/auth/login",
+        data={"username": "refresh@example.com", "password": "password123"},
+    )
+    refresh_token = login.json()["refresh_token"]
+
+    response = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
+
+    assert response.status_code == 200
+    stored = db_session.query(RefreshToken).filter(RefreshToken.token_hash == hash_api_key(refresh_token)).first()
+    assert stored is not None
+    assert stored.is_revoked is True
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_revoked_token(client, create_user, db_session):
+    user = create_user("revoked@example.com")
+    token = create_refresh_token({"sub": str(user.id), "email": user.email})
+    db_session.add(
+        RefreshToken(
+            token_hash=hash_api_key(token),
+            user_id=user.id,
+            expires_at=(datetime.now(timezone.utc) + timedelta(days=7)).replace(tzinfo=None),
+            is_revoked=True,
+        )
+    )
+    db_session.commit()
+
+    response = await client.post("/auth/refresh", json={"refresh_token": token})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Refresh token has been revoked"
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_expired_token(client, create_user, db_session):
+    user = create_user("expired-refresh@example.com")
+    token = create_refresh_token({"sub": str(user.id), "email": user.email})
+    db_session.add(
+        RefreshToken(
+            token_hash=hash_api_key(token),
+            user_id=user.id,
+            expires_at=(datetime.now(timezone.utc) - timedelta(days=1)).replace(tzinfo=None),
+            is_revoked=False,
+        )
+    )
+    db_session.commit()
+
+    response = await client.post("/auth/refresh", json={"refresh_token": token})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Token has expired"
+
+
+@pytest.mark.asyncio
+async def test_logout_revokes_refresh_token(client, create_user, db_session):
+    create_user("logout@example.com")
+    login = await client.post(
+        "/auth/login",
+        data={"username": "logout@example.com", "password": "password123"},
+    )
+    tokens = login.json()
+    response = await client.post(
+        "/auth/logout",
+        json={"refresh_token": tokens["refresh_token"]},
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+
+    assert response.status_code == 200
+    stored = db_session.query(RefreshToken).filter(RefreshToken.token_hash == hash_api_key(tokens["refresh_token"])).first()
+    assert stored.is_revoked is True
+
+
+@pytest.mark.asyncio
+async def test_me_accepts_jwt(client, create_user):
+    create_user("mejwt@example.com")
+    login = await client.post(
+        "/auth/login",
+        data={"username": "mejwt@example.com", "password": "password123"},
+    )
+    response = await client.get("/auth/me", headers={"Authorization": f"Bearer {login.json()['access_token']}"})
+    assert response.status_code == 200
+    assert response.json()["email"] == "mejwt@example.com"
+
+
+@pytest.mark.asyncio
+async def test_me_accepts_api_key(client, create_user):
+    create_user("apikeyme@example.com")
+    login = await client.post(
+        "/auth/login",
+        data={"username": "apikeyme@example.com", "password": "password123"},
+    )
+    api_key_response = await client.post(
+        "/auth/api-keys",
+        json={"name": "integration"},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+    raw_key = api_key_response.json()["key"]
+    response = await client.get("/auth/me", headers={"X-API-Key": raw_key})
+    assert response.status_code == 200
+    assert response.json()["email"] == "apikeyme@example.com"
+
+
+@pytest.mark.asyncio
+async def test_me_rejects_expired_access_token(client, create_user):
+    user = create_user("expired-access@example.com")
+    expired_token = jwt.encode(
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "type": "access",
+            "exp": datetime.now(timezone.utc) - timedelta(minutes=1),
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+    response = await client.get("/auth/me", headers={"Authorization": f"Bearer {expired_token}"})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Token has expired"
+
+
+@pytest.mark.asyncio
+async def test_me_rejects_tampered_jwt(client, create_user):
+    create_user("tampered@example.com")
+    login = await client.post(
+        "/auth/login",
+        data={"username": "tampered@example.com", "password": "password123"},
+    )
+    token = login.json()["access_token"] + "tampered"
+    response = await client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Could not validate credentials"
+
+
+@pytest.mark.asyncio
+async def test_create_and_revoke_api_key_flow(client, create_user, db_session):
+    create_user("apikeyflow@example.com")
+    login = await client.post(
+        "/auth/login",
+        data={"username": "apikeyflow@example.com", "password": "password123"},
+    )
+    access_token = login.json()["access_token"]
+
+    create_response = await client.post(
+        "/auth/api-keys",
+        json={"name": "CI key"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert create_response.status_code == 201
+    key_id = create_response.json()["id"]
+
+    list_response = await client.get(
+        "/auth/api-keys",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert list_response.status_code == 200
+    assert len(list_response.json()) == 1
+
+    revoke_response = await client.delete(
+        f"/auth/api-keys/{key_id}",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert revoke_response.status_code == 204
+    record = db_session.query(APIKey).filter(APIKey.id == key_id).first()
+    assert record.is_active is False
